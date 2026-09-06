@@ -64,16 +64,23 @@ def set_bn_track(model: nn.Module, track: bool):
 
 @torch.no_grad()
 def calibrate_bn(model: nn.Module, loader, device, max_batches: int = 50):
-    """Recompute BN running statistics with a train-mode pass over training batches."""
+    """Recompute BN running statistics as the cumulative average over `max_batches`
+    train-mode batches (momentum None), so the reset values carry no residual weight."""
     set_bn_track(model, True)
-    for m in model.modules():
-        if isinstance(m, nn.modules.batchnorm._BatchNorm):
-            m.reset_running_stats()
+    bns = [m for m in model.modules() if isinstance(m, nn.modules.batchnorm._BatchNorm)]
+    momenta = [m.momentum for m in bns]
+    for m in bns:
+        m.reset_running_stats()
+        m.momentum = None
     model.train()
-    for i, (x, _) in enumerate(loader):
-        if i >= max_batches:
-            break
-        model(x.to(device))
+    try:
+        for i, (x, _) in enumerate(loader):
+            if i >= max_batches:
+                break
+            model(x.to(device))
+    finally:
+        for m, mom in zip(bns, momenta):
+            m.momentum = mom
 
 
 @torch.no_grad()

@@ -20,9 +20,10 @@ from .heads import build_head
 
 
 class FixedFeatureProblem:
-    def __init__(self, features: str, head: str, imbalance: int = 100, val_per_class: int = 100,
+    def __init__(self, features, head: str, imbalance: int = 100, val_per_class: int = 100,
                  seed: int = 1, ridge: float = 1e-4, momentum: float = 0.9):
-        z = load_features(features)
+        """`features`: path to the npz cache, or a dict with x_train, y_train, x_test, y_test."""
+        z = load_features(features) if isinstance(features, str) else features
         y_all = z['y_train']
         C = int(y_all.max()) + 1
         tr, va = lt_split(y_all, imbalance, val_per_class, seed, C)

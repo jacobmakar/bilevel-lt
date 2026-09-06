@@ -1,19 +1,24 @@
 """AutoBalance-style bilevel logit adjustment on long-tailed CIFAR-10, end to end.
 
-    inner   SGD with momentum on ResNet-32 parameters theta, minimizing
-            CE(sigma(delta) * f_theta(x) + l, y) + wd/2 ||theta||^2 on the long-tailed train set
+    inner   SGD with momentum and coupled weight decay on ResNet-32 parameters theta,
+            minimizing CE(sigma(delta) * f_theta(x) + l, y) on the long-tailed train set
     outer   every `unroll_steps` inner steps, one optimizer step on the leader (l, delta)
             along the IFT hypergradient  -B^T Hhat^{-1} g_out  of the balanced-validation CE
             of the RAW logits, with Hhat^{-1} g_out from one estimator in estimators.py,
             evaluated on one train minibatch (H, B) and one validation minibatch (g_out).
+            H and B are second derivatives of the cross-entropy term alone; the weight decay
+            is applied in the SGD step and is not part of the Hessian, as in AutoBalance.
 
+The leader's scale sigma(delta) starts at 0.5 (delta = 0), as in the published method, so
+with delta on the bilevel arm's inner objective at step 0 is not the LA arm's; --no_delta
+gives the exactly matched comparison (offsets only, same objective at step 0 with --la_init).
 The closed-form baselines run through the same inner loop with the leader frozen:
     --method la    l = tau * log(pi)  (logit adjustment, Menon et al. 2021)
     --method ce    tau = 0
 so any difference between them and --method ab is the outer loop, not the training recipe.
-BatchNorm uses batch statistics during training (no running-stat updates inside torch.func)
-and is calibrated on training batches before every eval-mode measurement.
-Writes <out>/metrics.json.
+Minibatches are drawn by proper epochs without replacement. BatchNorm uses batch statistics
+during training (no running-stat updates inside torch.func) and is calibrated on training
+batches before every eval-mode measurement. Writes <out>/metrics.json.
 """
 from __future__ import annotations
 
@@ -126,8 +131,8 @@ class AutoBalance:
             self.hyper.append(nn.Parameter(torch.zeros_like(log_pi)))
         self.outer_opt = None
         if args.method == 'ab':
-            self.outer_opt = (torch.optim.SGD(self.hyper, lr=args.outer_lr, momentum=0.9, weight_decay=1e-4)
-                              if args.outer_opt == 'sgd' else torch.optim.Adam(self.hyper, lr=args.outer_lr))
+            self.outer_opt = (torch.optim.SGD(self.hyper, lr=args.outer_lr, momentum=0.9, weight_decay=args.outer_wd)
+                              if args.outer_opt == 'sgd' else torch.optim.Adam(self.hyper, lr=args.outer_lr, weight_decay=args.outer_wd))
             self.estimator = make_estimator(args.estimator, args.cost, args.alpha, self.flat.p, device, args.seed)
 
     # objectives -------------------------------------------------------------
@@ -232,7 +237,8 @@ def parse_args(argv=None):
     ap.add_argument('--cost', type=int, default=10, help="estimator iterations (neumann, cg, damped) or rank (nystrom)")
     ap.add_argument('--alpha', type=float, default=0.01, help="neumann step size | nystrom rho | damped mu")
     ap.add_argument('--la_init', action='store_true', help="ab: start the leader at l = log(pi)")
-    ap.add_argument('--no_delta', action='store_true', help="ab: offsets only, no per-class scale")
+    ap.add_argument('--no_delta', action='store_true',
+                    help="ab: offsets only, no per-class scale sigma(delta) (which starts at 0.5)")
     ap.add_argument('--tau', type=float, default=2.0, help="la: l = tau * log(pi)")
     ap.add_argument('--imbalance', type=int, default=100)
     ap.add_argument('--val_per_class', type=int, default=100)
@@ -246,6 +252,7 @@ def parse_args(argv=None):
     ap.add_argument('--inner_wd', type=float, default=2e-4)
     ap.add_argument('--outer_lr', type=float, default=5e-2)
     ap.add_argument('--outer_opt', choices=('sgd', 'adam'), default='sgd')
+    ap.add_argument('--outer_wd', type=float, default=1e-4, help="weight decay on the leader (pulls l toward 0)")
     ap.add_argument('--eval_every', type=int, default=500)
     ap.add_argument('--log_every', type=int, default=100)
     ap.add_argument('--workers', type=int, default=4)

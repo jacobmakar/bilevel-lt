@@ -27,5 +27,5 @@ def test_heads_parameter_count_and_shapes():
         fwd, init, p_, dims = build_head(kind, 384, 10)
         assert p_ == p
         theta = init(0)
-        assert theta.shape == (p,)
-        assert fwd(theta, torch.randn(7, 384, dtype=theta.dtype)).shape == (7, 10)
+        assert theta.shape == (p,) and theta.dtype == torch.float64
+        assert fwd(theta, torch.randn(7, 384, dtype=torch.float64)).shape == (7, 10)

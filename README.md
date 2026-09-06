@@ -49,8 +49,10 @@ python -m bilevel_lt.ladder --head dlin16 --mode ref --seed 1                  #
 finite differences, which is well defined even where the training problem has no unique
 minimizer, and compares every estimator against it; it also records the inner Hessian
 spectrum (dense for `p <= dense_max`, Lanczos extremes above). `loop` runs the outer loop
-with one estimator. `ref` trains the closed form for each `tau` and reports validation and
-test balanced accuracy, so the temperature can be selected on validation.
+with one estimator. `ref` trains the closed form for each `tau` (for `--ref_steps` inner
+steps; the loop trains `warm_steps + outer_steps * k_loop`) and reports validation and test
+balanced accuracy, so the temperature can be selected on validation. Cell file names come
+from `bilevel_lt/tags.py`, which the sweep tooling shares.
 
 `scripts/ladder_tables.py <dir>` turns a directory of cells into tables.
 
@@ -68,8 +70,11 @@ python -m bilevel_lt.autobalance --method la --tau 2 --val_per_class 100 --seed 
 python -m bilevel_lt.autobalance --method ce --val_per_class 100 --seed 1
 ```
 
-Each run writes `<out>/metrics.json` with the training history, the final calibrated test
-and validation accuracies (overall, per class, balanced) and the leader.
+With the per-class scale on (the default, as published) the scale starts at 0.5, so the
+bilevel arm's objective at step 0 differs from LA's; `--no_delta` gives the offsets-only
+leader whose objective coincides with LA's at initialization. Each run writes
+`<out>/metrics.json` with the training history, the final calibrated test and validation
+accuracies (overall, per class, balanced) and the leader.
 `scripts/autobalance_tables.py <dir>` tabulates runs by arm and validation size.
 
 ## Comparison protocol
@@ -93,7 +98,7 @@ spectral helpers `dense_hessian`, `lam_max`, `lanczos_extremes`. The ladder adds
 ## Layout
 
 ```
-bilevel_lt/   data.py heads.py estimators.py problem.py ladder.py resnet.py autobalance.py
+bilevel_lt/   data.py heads.py estimators.py problem.py ladder.py tags.py resnet.py autobalance.py
 scripts/      ladder_tables.py autobalance_tables.py sweep_eta.py
 slurm/        jobs.sbatch ladder_jobs.sh autobalance.sbatch autobalance_panel.sh
 tests/

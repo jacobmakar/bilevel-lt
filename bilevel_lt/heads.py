@@ -49,8 +49,8 @@ def build_head(kind: str, k: int, C: int):
         for i in range(n_layers):
             nout, nin = dims[i + 1], dims[i]
             bound = 1.0 / math.sqrt(nin)
-            parts.append((torch.rand(nout * nin, generator=g) * 2 - 1) * bound)
-            parts.append((torch.rand(nout, generator=g) * 2 - 1) * bound)
+            parts.append((torch.rand(nout * nin, generator=g, dtype=torch.float64) * 2 - 1) * bound)
+            parts.append((torch.rand(nout, generator=g, dtype=torch.float64) * 2 - 1) * bound)
         return torch.cat(parts)
 
     return forward, init, p, dims

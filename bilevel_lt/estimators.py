@@ -3,7 +3,10 @@
 Every estimator maps an HVP oracle `hvp(v) = H v` and a right-hand side `b` to an
 approximation of H^{-1} b and an info dict. They are written on flat vectors so the same
 code serves the fixed-feature ladder (float64, p up to ~1e5) and the ResNet-32 pipeline
-(float32 on GPU, p ~ 5e5). The hypergradient of a bilevel problem with inner parameters
+(float32 on GPU, p ~ 5e5). Two Nystrom variants are kept on purpose: `nystrom_sketch`
+(Gaussian sketch) is the ladder's, `nystrom_columns` (coordinate columns) is the one the
+end-to-end method was published with. The Neumann step size is a caller policy: the ladder
+uses 1/lambda_max, the end-to-end pipeline the published constant. The hypergradient of a bilevel problem with inner parameters
 theta and leader l is  dL_out/dl = -B^T H^{-1} g_out  with H = d^2 L_in / d theta^2,
 B = d^2 L_in / dl dtheta and g_out = dL_out / dtheta; estimators approximate H^{-1} g_out.
 """
@@ -111,7 +114,7 @@ def minres(hvp: HVP, b: Tensor, p: int, tol: float = 1e-10, maxiter: int = 3000)
     On heads whose Hessian is indefinite it typically hits `maxiter` without converging and
     returns a filtered iterate, not the inverse: check `resid`."""
     from scipy.sparse.linalg import minres as _minres
-    x, info = _minres(scipy_operator(hvp, p, b.dtype), b.detach().cpu().numpy(), rtol=tol, maxiter=maxiter)
+    x, info = _minres(scipy_operator(hvp, p, b.dtype, b.device), b.detach().cpu().numpy(), rtol=tol, maxiter=maxiter)
     x = torch.as_tensor(np.asarray(x), dtype=b.dtype, device=b.device)
     resid = float((hvp(x) - b).norm() / b.norm())
     return x, dict(info=int(info), resid=resid, maxiter=maxiter)
@@ -147,9 +150,13 @@ def dense_hessian(hvp: HVP, p: int, chunk: int = 64, dtype=None, device=None) ->
     return 0.5 * (H + H.T)
 
 
-def lam_max(hvp: HVP, p: int, iters: int = 30, seed: int = 0, dtype=None, device=None) -> float:
-    """Largest eigenvalue by power iteration (used to scale Neumann and damping)."""
-    u = torch.randn(p, generator=torch.Generator().manual_seed(seed), dtype=dtype).to(device)
+def lam_max(hvp: HVP, p: int, iters: int = 30, seed: int = 0, like: Tensor | None = None) -> float:
+    """Largest eigenvalue by power iteration (used to scale Neumann and damping). `like`
+    fixes dtype and device of the probe vector (default: torch's defaults, CPU)."""
+    u = torch.randn(p, generator=torch.Generator().manual_seed(seed),
+                    dtype=None if like is None else like.dtype)
+    if like is not None:
+        u = u.to(like.device)
     u = u / u.norm()
     lam = 0.0
     for _ in range(iters):
@@ -159,24 +166,24 @@ def lam_max(hvp: HVP, p: int, iters: int = 30, seed: int = 0, dtype=None, device
     return lam
 
 
-def scipy_operator(hvp: HVP, p: int, dtype=torch.float64):
+def scipy_operator(hvp: HVP, p: int, dtype=torch.float64, device=None):
     from scipy.sparse.linalg import LinearOperator
     np_dtype = np.float64 if dtype == torch.float64 else np.float32
 
     def mv(x):
-        u = torch.as_tensor(np.ascontiguousarray(x, dtype=np_dtype)).reshape(-1)
+        u = torch.as_tensor(np.ascontiguousarray(x, dtype=np_dtype), device=device).reshape(-1)
         return hvp(u).detach().cpu().numpy()
     return LinearOperator((p, p), matvec=mv, dtype=np_dtype)
 
 
 def lanczos_extremes(hvp: HVP, p: int, k_small: int = 6, k_large: int = 3, ncv: int = 64,
-                     restarts: int = 180, tol: float = 1e-4) -> dict:
+                     restarts: int = 180, tol: float = 1e-4, dtype=torch.float64, device=None) -> dict:
     """Smallest-algebraic and largest eigenvalues by implicitly restarted Lanczos, for p too
     large for `dense_hessian`. `restarts` bounds eigsh's maxiter, which counts restarts of
     ~ncv-k matvecs each; a dense cluster at the bottom of the spectrum converges slowly, so
     partial Ritz values are kept (flagged `*_converged=False`) rather than running for hours."""
     from scipy.sparse.linalg import eigsh
-    A = scipy_operator(hvp, p)
+    A = scipy_operator(hvp, p, dtype, device)
     out = {}
     for name, k, which in (('smallest', k_small, 'SA'), ('largest', k_large, 'LA')):
         try:

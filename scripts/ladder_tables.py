@@ -1,7 +1,7 @@
 """Tables from ladder cell JSONs: certification cosines and spectra, outer-loop accuracy,
 and the closed-form reference with its temperature selected on validation.
 
-    python scripts/ladder_tables.py runs/headladder [--group head,ridge,val]
+    python scripts/ladder_tables.py runs/headladder
 """
 import argparse
 import collections
@@ -9,7 +9,7 @@ import glob
 import json
 import os
 
-EST_CERT = ('identity', 'cg10', 'cg100', 'neumann10', 'neumann100', 'exact_minres', 'damped',
+EST_CERT = ('identity', 'cg10', 'cg100', 'neumann10', 'neumann100', 'minres', 'damped',
             'nystrom10', 'nystrom50', 'dense')
 
 

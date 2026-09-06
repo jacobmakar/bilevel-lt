@@ -29,6 +29,7 @@ import torch
 
 from . import estimators as est
 from .problem import FixedFeatureProblem
+from .tags import cell_tag
 
 torch.set_default_dtype(torch.float64)
 
@@ -76,7 +77,7 @@ def solve(name, prob, theta, l, g_out, args, seed=0):
         return est.cg(hvp, g_out, int(name[2:]))
     if name.startswith('neumann'):
         return est.neumann(hvp, g_out, int(name[7:]), 1.0 / est.lam_max(hvp, prob.p, iters=15))
-    if name == 'exact':
+    if name == 'minres':
         return est.minres(hvp, g_out, prob.p, tol=1e-8, maxiter=1000)
     if name == 'damped':
         mu = args.damp_rel * est.lam_max(hvp, prob.p, iters=15)
@@ -168,7 +169,7 @@ def mode_cert(prob, args, out):
         record(f'cg{K}', *est.cg(hvp, g_out, K))
     for K in (10, 100):
         record(f'neumann{K}', *est.neumann(hvp, g_out, K, 1.0 / Lk))
-    record('exact_minres', *est.minres(hvp, g_out, prob.p))
+    record('minres', *est.minres(hvp, g_out, prob.p))
     record('damped', *est.damped(hvp, g_out, mu))
     for k in (10, 50):
         record(f'nystrom{k}', *est.nystrom_sketch(hvp, g_out, prob.p, k, mu))
@@ -214,15 +215,16 @@ def mode_cert(prob, args, out):
 def mode_ref(prob, args, out):
     t0 = time.time()
     res = {}
-    for tau in (0.0, 0.5, 1.0, 1.5, 2.0):
+    steps = args.ref_steps if args.ref_steps is not None else args.warm_steps
+    for tau in (float(t) for t in args.tau_grid.split(',')):
         l = tau * torch.log(prob.pi)
         theta = prob.init(args.seed)
         lr = args.lr_scale / est.lam_max(prob.hvp(theta, l), prob.p)
-        theta = prob.run_map(theta, l, args.warm_steps, lr)
+        theta = prob.run_map(theta, l, steps, lr)
         ok = bool(torch.isfinite(theta).all())
         res[str(tau)] = dict(bacc=prob.bacc(theta) if ok else None, bacc_val=prob.bacc(theta, 'val') if ok else None,
                              lr=lr, grad_norm=float(prob.g_in(theta, l).norm()) if ok else None)
-    out.update(p=prob.p, ref=res, status='ok', seconds=time.time() - t0)
+    out.update(p=prob.p, ref=res, ref_steps=steps, status='ok', seconds=time.time() - t0)
 
 
 def mode_loop(prob, args, out):
@@ -266,27 +268,6 @@ def mode_loop(prob, args, out):
 
 
 # ---------------------------------------------------------------------------
-def cell_tag(a) -> str:
-    tag = f"{a.head}_s{a.seed}_{a.mode}_{a.point}"
-    if a.mode == 'loop':
-        tag += f"_{a.estimator}_{a.outer_opt}"
-    if a.ridge != 1e-4:
-        tag += f"_lam{a.ridge:g}"
-    if a.mode == 'cert' and a.k_list != '200,600':
-        tag += f"_k{a.k_list.replace(',', '-')}"
-    if a.polish_iters > 0:
-        tag += f"_polish{a.polish_iters}"
-    if a.damp_rel != 1e-3:
-        tag += f"_damp{a.damp_rel:g}"
-    if a.mode == 'loop' and a.estimator == 'damped_track' and a.damp_track != 0.5:
-        tag += f"_c{a.damp_track:g}"
-    if a.mode == 'loop' and a.outer_steps != 200:
-        tag += f"_T{a.outer_steps}"
-    if a.val_per_class != 100:
-        tag += f"_val{a.val_per_class}"
-    return tag
-
-
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--features', default='data/features/dinov2_s_c10.npz')
@@ -294,14 +275,17 @@ def parse_args(argv=None):
     ap.add_argument('--mode', choices=('cert', 'loop', 'ref'), default='cert')
     ap.add_argument('--point', default='zero', help="leader point: zero | la<tau>")
     ap.add_argument('--estimator', default='identity',
-                    help="loop: identity | cg<K> | neumann<K> | exact (MINRES) | damped | damped_track | nystrom<k> | dense")
+                    help="loop: identity | cg<K> | neumann<K> | minres | damped | damped_track | nystrom<k> | dense")
     ap.add_argument('--imbalance', type=int, default=100)
     ap.add_argument('--val_per_class', type=int, default=100)
     ap.add_argument('--ridge', type=float, default=1e-4)
     ap.add_argument('--momentum', type=float, default=0.9)
     ap.add_argument('--lr_scale', type=float, default=0.5, help="inner lr = lr_scale / lam_max(init)")
-    ap.add_argument('--warm_steps', type=int, default=2000)
-    ap.add_argument('--k_list', default='200,1000', help="cert: horizons of the k-step maps to differentiate")
+    ap.add_argument('--warm_steps', type=int, default=2000, help="inner steps before cert / loop start")
+    ap.add_argument('--ref_steps', type=int, default=None,
+                    help="ref: inner steps per tau (default warm_steps; the loop trains warm_steps + outer_steps * k_loop)")
+    ap.add_argument('--tau_grid', default='0,0.5,1,1.5,2', help="ref: logit-adjustment temperatures")
+    ap.add_argument('--k_list', default='200,600', help="cert: horizons of the k-step maps to differentiate")
     ap.add_argument('--fd_eps', type=float, default=1e-3)
     ap.add_argument('--dense_max', type=int, default=8000, help="dense spectrum for p up to this; Lanczos above")
     ap.add_argument('--damp_rel', type=float, default=1e-3, help="damping mu = damp_rel * lam_max (damped, nystrom)")
@@ -322,7 +306,7 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     torch.set_num_threads(args.threads)
-    tag = cell_tag(args)
+    tag = cell_tag(vars(args))
     out_dir = os.path.join(args.out_root, 'headladder')
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, tag + '.json')

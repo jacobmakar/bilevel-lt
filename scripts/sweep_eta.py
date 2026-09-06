@@ -21,35 +21,22 @@ import sys
 import time
 from collections import defaultdict
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from bilevel_lt.tags import cell_tag  # noqa: E402  (torch-free)
+
 
 def parse_cmd(cmd):
+    """`--name value` pairs of a cell command line; defaults come from bilevel_lt.tags."""
     toks = cmd.split()
-    a = {'mode': 'cert', 'point': 'zero', 'estimator': None, 'ridge': '0.0001',
-         'k_list': '200,1000', 'polish_iters': '0', 'outer_opt': 'adam', 'seed': '1',
-         'damp_rel': '0.001', 'outer_steps': '200', 'val_per_class': '100'}
+    a = {}
     for i, t in enumerate(toks):
-        if t.startswith('--') and i + 1 < len(toks):
+        if t.startswith('--') and i + 1 < len(toks) and not toks[i + 1].startswith('--'):
             a[t[2:]] = toks[i + 1]
     return a
 
 
 def tag_of(a):
-    tag = f"{a['head']}_s{a['seed']}_{a['mode']}_{a['point']}"
-    if a['mode'] == 'loop':
-        tag += f"_{a['estimator']}_{a['outer_opt']}"
-    if float(a['ridge']) != 1e-4:
-        tag += f"_lam{float(a['ridge']):g}"
-    if a['mode'] == 'cert' and a['k_list'] != '200,600':
-        tag += f"_k{a['k_list'].replace(',', '-')}"
-    if int(a['polish_iters']) > 0:
-        tag += f"_polish{a['polish_iters']}"
-    if float(a['damp_rel']) != 1e-3:
-        tag += f"_damp{float(a['damp_rel']):g}"
-    if a['mode'] == 'loop' and int(a['outer_steps']) != 200:
-        tag += f"_T{a['outer_steps']}"
-    if int(a['val_per_class']) != 100:
-        tag += f"_val{a['val_per_class']}"
-    return tag
+    return cell_tag(a)
 
 
 def norm(cmd):
@@ -129,8 +116,8 @@ def main():
 
     # duration model: (mode, head, estimator) -> (mode, head) -> mode -> global
     groups = [defaultdict(list) for _ in range(4)]
-    keyf = [lambda a: (a['mode'], a['head'], a['estimator'], a['k_list'], a['polish_iters'], a['outer_steps']),
-            lambda a: (a['mode'], a['head']), lambda a: (a['mode'],), lambda a: ()]
+    keyf = [lambda a: (a.get('mode', 'cert'), a['head'], a.get('estimator'), a.get('k_list'), a.get('polish_iters'), a.get('outer_steps')),
+            lambda a: (a.get('mode', 'cert'), a['head']), lambda a: (a.get('mode', 'cert'),), lambda a: ()]
     for c, dur in done.items():
         for g, kf in zip(groups, keyf):
             g[kf(cells[c])].append(dur)

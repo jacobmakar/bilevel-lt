@@ -58,9 +58,9 @@ def main():
             for seed, taus in la.items():
                 if len(taus) < 2:
                     continue
-                by_val = max(taus.values(), key=lambda d: d['final']['val']['bacc'])
+                by_val = max(taus.values(), key=lambda d: d['final']['val'][m])
                 by_test = max(taus.values(), key=lambda d: d['final']['test'][m])
-                rows.setdefault('la-val (tau by val bacc)', {}).setdefault(v, []).append(by_val['final']['test'][m])
+                rows.setdefault('la-val (tau by val)', {}).setdefault(v, []).append(by_val['final']['test'][m])
                 rows.setdefault('la-oracle (tau by test)', {}).setdefault(v, []).append(by_test['final']['test'][m])
         for name in sorted(rows, key=lambda n: (not n.startswith('ce'), not n.startswith('la'), n)):
             print(f"| {name} | " + " | ".join(fmt(rows[name].get(v, [])) for v in vals) + " |")
