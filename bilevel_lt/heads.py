@@ -5,8 +5,7 @@
                     (a product of matrices; the loss is non-convex in the parameters)
     relu{w}[d{L}]   the same shape with ReLU between layers
 
-A flat parameter vector keeps Hessian-vector products, dense Hessians and the finite-
-difference ground truth trivial to write.
+One flat parameter vector keeps Hessian-vector products and dense Hessians simple.
 """
 from __future__ import annotations
 

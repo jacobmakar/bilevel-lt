@@ -1,14 +1,11 @@
 """Inverse-Hessian-vector-product estimators.
 
 Every estimator maps an HVP oracle `hvp(v) = H v` and a right-hand side `b` to an
-approximation of H^{-1} b and an info dict. They are written on flat vectors so the same
-code serves the fixed-feature ladder (float64, p up to ~1e5) and the ResNet-32 pipeline
-(float32 on GPU, p ~ 5e5). Two Nystrom variants are kept on purpose: `nystrom_sketch`
-(Gaussian sketch) is the ladder's, `nystrom_columns` (coordinate columns) is the one the
-end-to-end method was published with. The Neumann step size is a caller policy: the ladder
-uses 1/lambda_max, the end-to-end pipeline the published constant. The hypergradient of a bilevel problem with inner parameters
-theta and leader l is  dL_out/dl = -B^T H^{-1} g_out  with H = d^2 L_in / d theta^2,
-B = d^2 L_in / dl dtheta and g_out = dL_out / dtheta; estimators approximate H^{-1} g_out.
+approximation of H^{-1} b and an info dict, on flat vectors. Two Nystrom variants are kept
+on purpose: `nystrom_sketch` (Gaussian sketch) is used by the fixed-feature pipeline,
+`nystrom_columns` (coordinate columns) is the one AutoBalance was published with. The
+Neumann step size is chosen by the caller: the fixed-feature pipeline uses 1/lambda_max,
+the end-to-end pipeline the published constant.
 """
 from __future__ import annotations
 
@@ -121,8 +118,8 @@ def minres(hvp: HVP, b: Tensor, p: int, tol: float = 1e-10, maxiter: int = 3000)
 
 
 def dense_inverse(hvp: HVP, b: Tensor, p: int):
-    """The true H^{-1} b by a dense eigendecomposition (p up to ~1e4): the one estimator
-    that is exact, and the one that inherits every near-zero and negative eigenvalue."""
+    """The true H^{-1} b by a dense eigendecomposition (p up to ~1e4). It is exact, so it
+    also inherits every near-zero and negative eigenvalue of H."""
     H = dense_hessian(hvp, p, dtype=b.dtype, device=b.device)
     evals, evecs = torch.linalg.eigh(H)
     c = evecs.T @ b
@@ -152,7 +149,7 @@ def dense_hessian(hvp: HVP, p: int, chunk: int = 64, dtype=None, device=None) ->
 
 def lam_max(hvp: HVP, p: int, iters: int = 30, seed: int = 0, like: Tensor | None = None) -> float:
     """Largest eigenvalue by power iteration (used to scale Neumann and damping). `like`
-    fixes dtype and device of the probe vector (default: torch's defaults, CPU)."""
+    sets the dtype and device of the probe vector."""
     u = torch.randn(p, generator=torch.Generator().manual_seed(seed),
                     dtype=None if like is None else like.dtype)
     if like is not None:

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Generate job lists for a standard ladder sweep: certification at both leader points,
-# the closed-form reference, and the outer loop with each estimator, per seed.
+# Generate job lists for a standard fixed-feature sweep: cert at both leader points, ref,
+# and loop with each estimator, per seed.
 #
 #   OUT=~/scratch/bilevel_lt_runs/ladder HEADS="linear dlin16 relu16" SEEDS="1 2 3" slurm/ladder_jobs.sh
 #   for f in $OUT/jobs/*.txt; do sbatch --export=ALL,JOBLIST=$f,PAR=8,OUT=$OUT slurm/jobs.sbatch; done

@@ -1,8 +1,9 @@
-"""Cell tags for the ladder: one string per cell, used for the JSON file name, for
-resumption (a cell whose JSON exists is skipped) and by scripts/sweep_eta.py to match
-PROGRESS lines to job-list commands. Torch-free so the sweep tooling can import it with a
-bare system python. Only arguments that change a cell's result belong here; a non-default
-value appends a suffix, so tags of older cells stay valid when a new dial is added.
+"""Cell tags for the fixed-feature pipeline: one string per cell, used for the JSON file
+name, for resumption (a cell whose JSON exists is skipped) and by scripts/sweep_eta.py to
+match PROGRESS lines to job-list commands. Torch-free so the sweep tooling can import it
+with a bare system python. Only arguments that change a cell's result belong here; a
+non-default value appends a suffix, so tags of older cells stay valid when a new dial is
+added.
 """
 DEFAULTS = dict(head='linear', seed=1, mode='cert', point='zero', estimator='identity', outer_opt='adam',
                 ridge=1e-4, k_list='200,600', polish_iters=0, damp_rel=1e-3, damp_track=0.5,

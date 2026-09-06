@@ -1,4 +1,4 @@
-"""Live runtime estimate for a ladder sweep.
+"""Live runtime estimate for a fixed-feature sweep.
 
     python3 scripts/sweep_eta.py <results_dir> [--par N]
 

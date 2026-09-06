@@ -1,12 +1,9 @@
 """Long-tailed CIFAR-10 splits and the frozen-feature cache.
 
-Split protocol, shared by both pipelines: a balanced validation set of `val_per_class`
-images per class is carved from the full training set first (rng seed `seed`), then an
-exponential long-tail profile with ratio `imbalance` between the largest and the smallest
-class is sampled from what remains (rng seed `seed + 1`). Nobody trains on the validation
-images: the bilevel leader fits its class offsets on them, and the closed-form baseline
-may select its temperature on them. `val_per_class` is an explicit argument everywhere
-because the bilevel-vs-closed-form comparison depends on it.
+Split protocol, used by both pipelines: a balanced validation set of `val_per_class`
+images per class is sampled first (rng seed `seed`), then an exponential long-tail profile
+with ratio `imbalance` between the largest and the smallest class is sampled from the
+remaining data (rng seed `seed + 1`). The validation images are never trained on.
 """
 from __future__ import annotations
 
@@ -82,7 +79,7 @@ def cifar10_lt(root: str, imbalance: int, val_per_class: int, seed: int):
 
 
 # ---------------------------------------------------------------------------
-# frozen features (head-ladder pipeline)
+# frozen features (fixed-feature pipeline)
 # ---------------------------------------------------------------------------
 @torch.no_grad()
 def cache_dinov2_features(root: str, out: str, device: str | None = None, batch_size: int = 256):

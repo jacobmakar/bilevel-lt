@@ -1,24 +1,18 @@
-"""AutoBalance-style bilevel logit adjustment on long-tailed CIFAR-10, end to end.
+"""A replication of AutoBalance (Li et al. 2021) on ResNet-32.
 
-    inner   SGD with momentum and coupled weight decay on ResNet-32 parameters theta,
-            minimizing CE(sigma(delta) * f_theta(x) + l, y) on the long-tailed train set
+    inner   SGD with momentum and coupled weight decay, minimizing
+            CE(sigma(delta) * f_theta(x) + l, y) on the long-tailed train set
     outer   every `unroll_steps` inner steps, one optimizer step on the leader (l, delta)
-            along the IFT hypergradient  -B^T Hhat^{-1} g_out  of the balanced-validation CE
-            of the RAW logits, with Hhat^{-1} g_out from one estimator in estimators.py,
-            evaluated on one train minibatch (H, B) and one validation minibatch (g_out).
-            H and B are second derivatives of the cross-entropy term alone; the weight decay
-            is applied in the SGD step and is not part of the Hessian, as in AutoBalance.
+            along the hypergradient of the balanced-validation CE of the raw logits, with
+            H and B from one train minibatch and g_out from one validation minibatch. The
+            weight decay is applied in the SGD step and is not part of H, as in AutoBalance.
 
-The leader's scale sigma(delta) starts at 0.5 (delta = 0), as in the published method, so
-with delta on the bilevel arm's inner objective at step 0 is not the LA arm's; --no_delta
-gives the exactly matched comparison (offsets only, same objective at step 0 with --la_init).
-The closed-form baselines run through the same inner loop with the leader frozen:
-    --method la    l = tau * log(pi)  (logit adjustment, Menon et al. 2021)
-    --method ce    tau = 0
-so any difference between them and --method ab is the outer loop, not the training recipe.
-Minibatches are drawn by proper epochs without replacement. BatchNorm uses batch statistics
-during training (no running-stat updates inside torch.func) and is calibrated on training
-batches before every eval-mode measurement. Writes <out>/metrics.json.
+The scale sigma(delta) starts at 0.5 (delta = 0), as published, so the bilevel arm's inner
+objective at step 0 is not the LA arm's; --no_delta --la_init gives the exactly matched
+comparison. The closed-form baselines (--method la, --method ce) run through the same inner
+loop with the leader frozen. Minibatches are drawn by epochs without replacement. BatchNorm
+uses batch statistics during training (no running-stat updates inside torch.func) and is
+calibrated on training batches before every eval-mode measurement. Writes <out>/metrics.json.
 """
 from __future__ import annotations
 

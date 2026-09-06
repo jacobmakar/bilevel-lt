@@ -1,7 +1,7 @@
 [project]
 name = "bilevel-lt"
 version = "0.1.0"
-description = "Bilevel logit adjustment on long-tailed CIFAR-10: fixed-feature head ladder and end-to-end ResNet-32"
+description = "Bilevel logit adjustment on long-tailed CIFAR-10: a fixed-feature pipeline and an end-to-end ResNet-32 replication of AutoBalance"
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.1",

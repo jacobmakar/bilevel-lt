@@ -1,5 +1,6 @@
-"""Tables from ladder cell JSONs: certification cosines and spectra, outer-loop accuracy,
-and the closed-form reference with its temperature selected on validation.
+"""Tables from fixed-feature cell JSONs: cosines to the unrolled gradient and spectra,
+outer-loop accuracy, and the closed-form baseline with its temperature selected on
+validation.
 
     python scripts/ladder_tables.py runs/headladder
 """
@@ -48,7 +49,7 @@ def main():
         else:
             ref[k].append(d)
 
-    print("## certification: cosine to the finite-difference derivative of the inner map (mean, min..max over seeds)")
+    print("## cert: cosine of each estimator's hypergradient to the unrolled (finite-difference) gradient (mean, min..max over seeds)")
     ests = [e for e in EST_CERT if any(e in d.get('estimators', {}) for ds in cert.values() for d in ds)]
     print("| head | ridge | val | point | k | polish | damp | n | lam_min | n_neg | " + ' | '.join(ests) + " |")
     print("|" + "---|" * (10 + len(ests)))
@@ -60,7 +61,7 @@ def main():
         row += [stat([d['estimators'][e]['cos_fd'] for d in ds if e in d['estimators']], '{:.2f}') for e in ests]
         print("| " + " | ".join(row) + " |")
 
-    print("\n## reference: logit adjustment l = tau log(pi) trained on this head (balanced test accuracy)")
+    print("\n## ref: logit adjustment l = tau log(pi) trained on this head (balanced test accuracy)")
     print("| head | ridge | val | n | CE (tau=0) | tau=1 | tau=2 | best tau by val -> test | best tau by test (oracle) |")
     print("|---|---|---|---|---|---|---|---|---|")
     for k in sorted(ref):
@@ -76,7 +77,7 @@ def main():
         print(f"| {k[0]} | {k[1]:g} | {k[2]} | {len(ds)} | {stat(g('0.0'))} | {stat(g('1.0'))} | {stat(g('2.0'))} | "
               f"{stat(by_val)} | {stat(by_test)} |")
 
-    print("\n## outer loop: final balanced test accuracy per estimator (mean, min..max over seeds)")
+    print("\n## loop: final balanced test accuracy per estimator (mean, min..max over seeds)")
     ests_l = sorted({k[4] for k in loop})
     starts = sorted({k[3] for k in loop})
     print("| head | ridge | val | start | " + ' | '.join(ests_l) + " |")

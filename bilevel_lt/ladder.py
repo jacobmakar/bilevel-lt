@@ -1,17 +1,12 @@
-"""Head ladder: where does the implicit-function-theorem hypergradient stop matching what
-training computes, as the head on top of frozen features grows?
+"""The fixed-feature pipeline: a small head on frozen DINOv2 features.
 
 Three modes, one JSON per cell under --out_root/headladder/<tag>.json:
 
-    cert   at a fixed leader point, compare every estimator against the finite-difference
-           derivative of the k-step warm-started inner map  l -> L_out(A_k(l; theta0)),
-           which is well defined at every head even where the argmin is not unique; and
-           record the inner Hessian spectrum (dense eigendecomposition for p <= dense_max,
-           Lanczos extremes above).
-    loop   run the outer loop with one estimator (warm-started k_loop inner steps per outer
-           step) and report balanced test accuracy along the way.
-    ref    the closed-form reference: logit adjustment l = tau * log(pi) over a tau grid,
-           each trained from scratch on this head, with balanced val and test accuracy.
+    cert   hold the leader fixed at --point and score every estimator by the cosine of its
+           hypergradient to the unrolled gradient (central finite differences through the
+           k-step inner map). Also record the inner Hessian spectrum.
+    loop   run the outer loop with one estimator.
+    ref    train the closed-form baseline l = tau * log(pi) for each tau in --tau_grid.
 
 Every cell prints PROGRESS lines (scripts/sweep_eta.py turns them into a runtime estimate)
 and one JSON summary line at the end. A cell whose JSON already exists is skipped unless
@@ -287,7 +282,7 @@ def parse_args(argv=None):
     ap.add_argument('--tau_grid', default='0,0.5,1,1.5,2', help="ref: logit-adjustment temperatures")
     ap.add_argument('--k_list', default='200,600', help="cert: horizons of the k-step maps to differentiate")
     ap.add_argument('--fd_eps', type=float, default=1e-3)
-    ap.add_argument('--dense_max', type=int, default=8000, help="dense spectrum for p up to this; Lanczos above")
+    ap.add_argument('--dense_max', type=int, default=8000, help="dense spectrum for p up to this; Lanczos extremes above")
     ap.add_argument('--damp_rel', type=float, default=1e-3, help="damping mu = damp_rel * lam_max (damped, nystrom)")
     ap.add_argument('--damp_track', type=float, default=0.5, help="damping mu = damp_track * ||g_in|| (damped_track)")
     ap.add_argument('--polish_iters', type=int, default=0, help="cert: L-BFGS iterations after the warm start")

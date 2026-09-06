@@ -1,7 +1,7 @@
 #!/bin/bash
-# The fairness panel: the bilevel method against the closed form as a function of the
-# validation set size, everything else equal. Per seed and validation size:
-#   ab      Neumann-10, LA init (the reference bilevel configuration)
+# The comparison panel: the bilevel method against the closed-form baseline as a function
+# of the validation set size, with everything else equal. Per seed and validation size:
+#   ab      Neumann-10, LA init (the default bilevel configuration)
 #   la      tau in {1, 1.5, 2, 2.5}, so scripts/autobalance_tables.py can select tau on
 #           validation (la-val) and report the test-selected tau as an oracle
 #   ce      tau = 0

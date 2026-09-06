@@ -7,7 +7,7 @@
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
 #SBATCH --output=%x-%j.out
-# Run one job-list file (one ladder cell command per line) on a CPU node, PAR cells at a
+# Run one job-list file (one fixed-feature cell command per line) on a CPU node, PAR cells at a
 # time, with START/END stamps around every cell so scripts/sweep_eta.py can estimate the
 # remaining time while the sweep is live. Cells whose JSON exists are skipped by the
 # program itself, so resubmitting a list resumes it.

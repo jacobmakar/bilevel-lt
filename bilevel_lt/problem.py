@@ -3,10 +3,8 @@
     inner:  theta*(l) = argmin_theta  CE(head_theta(X) + l, y) + ridge/2 ||theta||^2   (long-tailed train)
     outer:  min_l  CE(head_theta*(l)(X_val), y_val)                                       (balanced val)
 
-The leader l is a per-class logit offset added inside the inner loss; the outer loss sees
-raw logits, so it has no direct dependence on l and the hypergradient is purely the
-implicit term. Closed-form reference: logit adjustment l = tau * log(pi).
-Everything is float64 on CPU.
+The outer loss sees raw logits, so it has no direct dependence on l and the hypergradient
+is purely the implicit term.
 """
 from __future__ import annotations
 
@@ -71,7 +69,7 @@ class FixedFeatureProblem:
         f = lambda ll: torch.dot(self.g_in(theta, ll), v)
         return -grad(f)(l)
 
-    # the inner algorithm whose derivative is the ground truth ----------------
+    # the inner training map; its derivative (unrolled differentiation) is the ground truth
     def run_map(self, theta0, l, k, lr):
         """k steps of gradient descent with momentum from theta0 at leader l."""
         theta, v = theta0.clone(), torch.zeros_like(theta0)
