@@ -123,8 +123,10 @@ class AutoBalance:
         log_pi = torch.tensor(np.log(self.pi), dtype=torch.float32, device=device)
         if args.method == 'ab':
             l0 = log_pi if args.la_init else torch.zeros_like(log_pi)
-        else:
+        elif args.method == 'la':
             l0 = args.tau * log_pi
+        else:                                   # ce: no adjustment
+            l0 = torch.zeros_like(log_pi)
         self.use_delta = args.method == 'ab' and not args.no_delta
         self.hyper = [nn.Parameter(l0.clone())]
         if self.use_delta:
@@ -168,6 +170,7 @@ class AutoBalance:
         momentum_buf = None
         patience = int(a.warmup_frac * a.num_iters)
         history, solver_log = [], []
+        skipped = 0
         loss_ema = None
         t0 = time.time()
         inner_grad = grad(self.inner_loss)
@@ -184,7 +187,12 @@ class AutoBalance:
             if self.outer_opt is not None and step > 0 and step >= patience and step % a.unroll_steps == 0:
                 xi, yi = next(train_iter)
                 xo, yo = next(val_iter)
-                hg, info = self.hypergradient(xi, yi, xo, yo)
+                try:
+                    hg, info = self.hypergradient(xi, yi, xo, yo)
+                except torch.linalg.LinAlgError as e:      # e.g. a singular Nystrom sketch
+                    print(f"step {step}: estimator failed ({e}); outer update skipped", flush=True)
+                    skipped += 1
+                    continue
                 if all(torch.isfinite(h).all() for h in hg):
                     for h, g_ in zip(self.hyper, hg):
                         h.grad = g_
@@ -209,7 +217,7 @@ class AutoBalance:
 
         final = self.measure(max_cal_batches=50)
         return dict(history=history, final=final, seconds=time.time() - t0,
-                    solver=dict(steps=len(solver_log),
+                    solver=dict(steps=len(solver_log), skipped=skipped,
                                 breakdowns=sum(1 for s in solver_log if s.get('breakdown')),
                                 mean_resid=(float(np.mean([s['resid'] for s in solver_log]))
                                             if solver_log and 'resid' in solver_log[0] else None)))
