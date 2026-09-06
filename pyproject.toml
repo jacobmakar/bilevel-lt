@@ -1,0 +1,21 @@
+[project]
+name = "bilevel-lt"
+version = "0.1.0"
+description = "Bilevel logit adjustment on long-tailed CIFAR-10: fixed-feature head ladder and end-to-end ResNet-32"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["bilevel_lt*"]
