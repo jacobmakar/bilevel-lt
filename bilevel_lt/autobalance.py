@@ -101,7 +101,9 @@ class AutoBalance:
         pin = device.type == 'cuda'
         kw = dict(num_workers=args.workers, pin_memory=pin, persistent_workers=args.workers > 0)
         self.train_loader = DataLoader(self.train_set, args.batch_size, shuffle=True, drop_last=True, **kw)
-        self.val_loader = DataLoader(self.val_set, args.outer_batch_size, shuffle=True, drop_last=True, **kw)
+        # the validation set can be smaller than a batch (few images per class): never drop it
+        self.val_loader = DataLoader(self.val_set, min(args.outer_batch_size, len(self.val_set)),
+                                     shuffle=True, drop_last=False, **kw)
         self.test_loader = DataLoader(self.test_set, 256, shuffle=False, **kw)
         self.val_eval_loader = DataLoader(self.val_set, 256, shuffle=False, **kw)
         self.cal_loader = DataLoader(self.train_set, 256, shuffle=True, drop_last=True, **kw)
